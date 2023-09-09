@@ -72,7 +72,7 @@ func main() {
 				fmt.Printf("Server has been offline for %s\n", offlineDuration)
 				offlineDuration += config.PingInterval
 				if offlineDuration >= config.TimeoutThreshold {
-					fmt.Println("Server has been offline for more than 5 minutes. Restarting...")
+					fmt.Printf("Server has been offline for more than %s minutes. Restarting...\n", config.TimeoutThreshold)
 					err = restartServer(config.IdracIP, config.IdracUsername, config.IdracPassword)
 					if err != nil {
 						fmt.Printf("Error Restarting Server: %s\n", err)
