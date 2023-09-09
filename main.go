@@ -37,8 +37,6 @@ func LoadConfig() (config Config, err error) {
 		return config, err
 	}
 
-	fmt.Printf("Loaded config: %+v\n", config)
-
 	config.PingInterval = config.PingInterval * time.Minute
 	config.TimeoutThreshold = config.TimeoutThreshold * time.Minute
 
@@ -50,12 +48,6 @@ func main() {
 
 	if err != nil {
 		log.Fatalf("Error loading config: %s\n", err)
-	}
-
-	err = restartServer(config.IdracIP, config.IdracUsername, config.IdracPassword)
-
-	if err != nil {
-		log.Fatalf("ERROR: %s\n", err)
 	}
 
 	var offlineDuration time.Duration

@@ -1,4 +1,4 @@
-name: Release Go project
+name: Release
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: GoReleaser build
+    name: GoReleaser
     runs-on: ubuntu-latest
 
     steps:
