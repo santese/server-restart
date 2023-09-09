@@ -1,0 +1,6 @@
+serverIp: 192.168.0.1
+pingInterval: 1 # in minutes
+timeoutThreshold: 5 # in minutes
+idracIp: 192.168.0.2
+idracUsername: user
+idracPassword: password

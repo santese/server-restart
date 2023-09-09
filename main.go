@@ -1,43 +1,70 @@
 package main
 
 import (
-	"crypto/tls"
-	"flag"
+	"bytes"
 	"fmt"
 	"log"
-	"net/http"
+	"net"
+	"os"
 	"time"
 
 	ping "github.com/go-ping/ping"
+	"github.com/spf13/viper"
+	"golang.org/x/crypto/ssh"
 )
 
-type config struct {
-	serverIP         string
-	pingInterval     time.Duration
-	timeoutThreshold time.Duration
-	idracIP          string
-	idracUsername    string
-	idracPassword    string
+type Config struct {
+	ServerIP         string        `yaml:"serverIP"`
+	PingInterval     time.Duration `yaml:"pingInterval"`     // in minutes
+	TimeoutThreshold time.Duration `yaml:"timeoutThreshold"` // in minutes
+	IdracIP          string        `yaml:"idracIP"`
+	IdracUsername    string        `yaml:"idracUsername"`
+	IdracPassword    string        `yaml:"idracPassword"`
+}
+
+func LoadConfig() (config Config, err error) {
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+
+	err = viper.ReadInConfig()
+	if err != nil {
+		return config, err
+	}
+
+	err = viper.Unmarshal(&config)
+	if err != nil {
+		return config, err
+	}
+
+	fmt.Printf("Loaded config: %+v\n", config)
+
+	config.PingInterval = config.PingInterval * time.Minute
+	config.TimeoutThreshold = config.TimeoutThreshold * time.Minute
+
+	return config, nil
 }
 
 func main() {
 	// Setup Config
-	config := config{}
+	config, err := LoadConfig()
 
-	flag.StringVar(&config.idracIP, "idracIP", "", "iDRAC IP address")
-	flag.StringVar(&config.idracUsername, "idracUsername", "", "iDRAC username")
-	flag.StringVar(&config.idracPassword, "idracPassword", "", "iDRAC password")
-	flag.StringVar(&config.serverIP, "serverIP", "", "Server IP address")
-	flag.DurationVar(&config.pingInterval, "pingInterval", 1*time.Minute, "Ping interval")
-	flag.DurationVar(&config.timeoutThreshold, "timeoutThreshold", 5*time.Minute, "Timeout threshold")
-	flag.Parse()
+	if err != nil {
+		log.Fatalf("Error loading config: %s\n", err)
+	}
+
+	err = restartServer(config.IdracIP, config.IdracUsername, config.IdracPassword)
+
+	if err != nil {
+		log.Fatalf("ERROR: %s\n", err)
+	}
 
 	var offlineDuration time.Duration
 
 	for {
-		pinger, err := ping.NewPinger(config.serverIP)
+		pinger, err := ping.NewPinger(config.ServerIP)
 		if err != nil {
-			log.Fatalf("ERROR: %s\n", err)
+			log.Fatalf("Error starting ping: %s\n", err)
 		}
 
 		pinger.Count = 1
@@ -52,10 +79,13 @@ func main() {
 		pinger.OnFinish = func(stats *ping.Statistics) {
 			if stats.PacketLoss == 100 {
 				fmt.Printf("Server has been offline for %s\n", offlineDuration)
-				offlineDuration += config.pingInterval
-				if offlineDuration >= config.timeoutThreshold {
+				offlineDuration += config.PingInterval
+				if offlineDuration >= config.TimeoutThreshold {
 					fmt.Println("Server has been offline for more than 5 minutes. Restarting...")
-					restartServer(config.idracIP, config.idracUsername, config.idracPassword)
+					err = restartServer(config.IdracIP, config.IdracUsername, config.IdracPassword)
+					if err != nil {
+						fmt.Printf("Error Restarting Server: %s\n", err)
+					}
 					offlineDuration = 0 // Resetting the counter
 				}
 			}
@@ -63,39 +93,41 @@ func main() {
 
 		err = pinger.Run()
 		if err != nil {
-			log.Fatalf("ERROR: %s\n", err)
+			log.Fatalf("Error running ping: %s\n", err)
 		}
 
-		time.Sleep(config.pingInterval)
+		time.Sleep(config.PingInterval)
 	}
 }
 
-func restartServer(ip, u, p string) error {
-	fmt.Printf("Restarting server at %s\n", time.Now())
-
-	// Create a new HTTP client with a 30 second timeout
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+// Function restarts idrac via ssh
+// Credit https://github.com/jhunt/buffalab/blob/master/idrac.go
+func restartServer(ip, username, password string) error {
+	client, err := ssh.Dial("tcp", ip+":22", &ssh.ClientConfig{
+		User: username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
 		},
+		HostKeyCallback: func(host string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to dial: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", fmt.Sprintf("https://%s/sysmgmt/2015/server/power?action=ForceRestart", ip), nil)
+	session, err := client.NewSession()
 	if err != nil {
 		return err
 	}
+	defer session.Close()
 
-	//TODO: Get this working, need to probably login to iDRAC first and get session cookie & potentially xsrf token
-	req.SetBasicAuth(u, p)
-
-	res, err := httpClient.Do(req)
-	if err != nil {
-		fmt.Printf("ERROR: %s\n", err)
+	var out bytes.Buffer
+	session.Stdout = &out
+	if err := session.Run("racadm serveraction hardreset"); err != nil {
 		return err
 	}
 
-	fmt.Printf("Server restart request sent. Response: %s\n", res.Status)
-
+	fmt.Fprintf(os.Stderr, "reset %s via idrac/racadm (output follows):%s\n", ip, out.String())
 	return nil
 }
