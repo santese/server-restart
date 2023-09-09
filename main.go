@@ -46,7 +46,6 @@ func LoadConfig() (config Config, err error) {
 }
 
 func main() {
-	// Setup Config
 	config, err := LoadConfig()
 
 	if err != nil {
@@ -100,7 +99,7 @@ func main() {
 	}
 }
 
-// Function restarts idrac via ssh
+// Restarts idrac via ssh
 // Credit https://github.com/jhunt/buffalab/blob/master/idrac.go
 func restartServer(ip, username, password string) error {
 	client, err := ssh.Dial("tcp", ip+":22", &ssh.ClientConfig{
