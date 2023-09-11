@@ -77,7 +77,7 @@ func main() {
 					fmt.Printf("Server has been offline for more than %s minutes. Restarting...\n", config.TimeoutThreshold)
 					err = restartServer(config.IdracIP, config.IdracUsername, config.IdracPassword)
 					// Sleep for a bit to give the server time to restart
-					time.Sleep(config.RestartTimeout * time.Minute)
+					time.Sleep(config.RestartTimeout)
 					if err != nil {
 						fmt.Printf("Error Restarting Server: %s\n", err)
 					}
