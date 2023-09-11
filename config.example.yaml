@@ -4,3 +4,5 @@ timeoutThreshold: 5 # in minutes
 idracIp: 192.168.0.2
 idracUsername: user
 idracPassword: password
+restartTimeout: 3 # in minutes (Time to wait for server to restart)
+

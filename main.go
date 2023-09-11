@@ -20,6 +20,7 @@ type Config struct {
 	IdracIP          string        `yaml:"idracIP"`
 	IdracUsername    string        `yaml:"idracUsername"`
 	IdracPassword    string        `yaml:"idracPassword"`
+	RestartTimeout   time.Duration `yaml:"restartTimeout"` // in minutes
 }
 
 func LoadConfig() (config Config, err error) {
@@ -39,6 +40,7 @@ func LoadConfig() (config Config, err error) {
 
 	config.PingInterval = config.PingInterval * time.Minute
 	config.TimeoutThreshold = config.TimeoutThreshold * time.Minute
+	config.RestartTimeout = config.RestartTimeout * time.Minute
 
 	return config, nil
 }
@@ -74,6 +76,8 @@ func main() {
 				if offlineDuration >= config.TimeoutThreshold {
 					fmt.Printf("Server has been offline for more than %s minutes. Restarting...\n", config.TimeoutThreshold)
 					err = restartServer(config.IdracIP, config.IdracUsername, config.IdracPassword)
+					// Sleep for a bit to give the server time to restart
+					time.Sleep(config.RestartTimeout * time.Minute)
 					if err != nil {
 						fmt.Printf("Error Restarting Server: %s\n", err)
 					}
